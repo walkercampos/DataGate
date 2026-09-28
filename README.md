@@ -72,3 +72,9 @@ streamlit run app.py
 2. Acesse [share.streamlit.io](https://share.streamlit.io) e conecte sua conta do GitHub.
 3. Selecione o repositório, o branch e defina `app.py` como arquivo principal.
 4. Clique em **Deploy**. O Streamlit Cloud instala as dependências de `requirements.txt` automaticamente.
+
+---
+
+## Matchmaking API
+
+O diretório [`matchmaking/`](matchmaking/) contém um projeto independente: uma API FastAPI + PostgreSQL de matchmaking. Veja o [README próprio](matchmaking/README.md).
