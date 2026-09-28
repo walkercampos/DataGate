@@ -136,13 +136,16 @@ jobs:
           LIMITE_AUTH_POR_MIN: "1000"
           WEBAUTHN_RP_ID: localhost
           WEBAUTHN_ORIGENS: http://localhost:8000
+          EMAIL_PROVEDOR: arquivo   # os testes leem o código de acesso nesta pasta
+          EMAIL_PASTA: /tmp/emails-e2e
         run: |
-          export JWT_SECRET="$(openssl rand -hex 32)" CHAVE_MENSAGENS="$(openssl rand -hex 32)"
+          export JWT_SECRET="$(openssl rand -hex 32)" CHAVE_MENSAGENS="$(openssl rand -hex 32)" EMAIL_PEPPER="$(openssl rand -hex 32)"
           nohup uvicorn app.main:app --port 8000 > uvicorn.log 2>&1 &
           for i in $(seq 1 30); do curl -fsS http://localhost:8000/api/saude && break; sleep 1; done
-      - name: Testes no navegador (passkeys, cadastro, fotos, chat efêmero, pânico, layout no celular)
+      - name: Testes no navegador (e-mail + biometria, fotos, chat efêmero, pânico, layout no celular)
         env:
           E2E_URL: http://localhost:8000
+          E2E_EMAILS: /tmp/emails-e2e
         run: npm run e2e
       - name: Log da aplicação (em caso de falha)
         if: failure()
@@ -173,6 +176,7 @@ jobs:
             -e JWT_SECRET="$(openssl rand -hex 32)" -e CHAVE_MENSAGENS="$(openssl rand -hex 32)" \
             -e AMBIENTE=producao -e PORT=8000 \
             -e WEBAUTHN_RP_ID=localhost -e WEBAUTHN_ORIGENS=http://localhost:8000 \
+            -e EMAIL_PEPPER="$(openssl rand -hex 32)" -e EMAIL_PROVEDOR=resend -e RESEND_API_KEY=nao-usada-no-smoke-test \
             afinidade:${{ github.sha }}
           for i in $(seq 1 30); do
             if curl -fsS http://localhost:8000/api/saude; then echo; break; fi
