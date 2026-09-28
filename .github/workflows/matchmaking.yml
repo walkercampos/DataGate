@@ -1,8 +1,10 @@
 # Pipeline do app Afinidade (pasta matchmaking/).
 #
 #   PR ou push ─┬─ lint ──────┐
-#               ├─ testes ────┼─ imagem (build + smoke test do contêiner) ─┐
+#               ├─ testes ────┤
+#               ├─ navegador ─┼─ imagem (build + smoke test do contêiner) ─┐
 #               └─ auditoria ─┘                                            │
+#   push (qualquer branch) roda o CI; só push na main faz o deploy
 #   push na main ──────────────────────────────────────────────────────────┴─ deploy (Render) + verificação
 #
 # Deploy: configure em Settings → Environments → "producao":
@@ -18,8 +20,11 @@ on:
   pull_request:
     paths: ["matchmaking/**", ".github/workflows/matchmaking.yml"]
   push:
-    branches: [main]
     paths: ["matchmaking/**", ".github/workflows/matchmaking.yml"]
+  # Roda tudo todo dia, mesmo sem mudanças: pega vulnerabilidades novas nas dependências
+  # e quebras vindas de fora (imagem base, serviços). Nunca faz deploy.
+  schedule:
+    - cron: "17 9 * * *"   # 06:17 em Brasília
   workflow_dispatch:
 
 permissions:
@@ -54,7 +59,9 @@ jobs:
       - name: Formatação
         run: ruff format --check .
       - name: Sintaxe do JavaScript do front-end
-        run: node --check static/app.js
+        run: for f in $(find static/js -name '*.js'); do node --check "$f"; done
+      - name: Testes unitários do front-end (node --test, sem dependências)
+        run: npm test
 
   testes:
     runs-on: ubuntu-latest
@@ -94,8 +101,53 @@ jobs:
       - name: Vulnerabilidades conhecidas nas dependências
         run: pip-audit -r requirements.txt
 
+  navegador:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: e2e
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 2s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: ${{ env.APP_DIR }}/requirements.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ env.APP_DIR }}/package-lock.json
+      - run: pip install -r requirements.txt
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Subir a aplicação
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/e2e
+          AMBIENTE: dev
+          LIMITE_AUTH_POR_MIN: "1000"
+        run: |
+          export JWT_SECRET="$(openssl rand -hex 32)" CHAVE_MENSAGENS="$(openssl rand -hex 32)"
+          nohup uvicorn app.main:app --port 8000 > uvicorn.log 2>&1 &
+          for i in $(seq 1 30); do curl -fsS http://localhost:8000/api/saude && break; sleep 1; done
+      - name: Testes no navegador (cadastro, fotos, chat efêmero, pânico, layout no celular)
+        env:
+          E2E_URL: http://localhost:8000
+        run: npm run e2e
+      - name: Log da aplicação (em caso de falha)
+        if: failure()
+        run: cat uvicorn.log
+
   imagem:
-    needs: [lint, testes, auditoria]
+    needs: [lint, testes, auditoria, navegador]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     services:
