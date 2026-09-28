@@ -1,0 +1,108 @@
+// Testes unitários das funções puras do front: `npm test` (sem dependências).
+import assert from "node:assert/strict";
+import { test } from "node:test";
+
+import {
+  DESTINO_PANICO, descreverDistancia, executarPanico, formatarRestante, lerRota, mensagemDeErro, msAte,
+  normalizarFilhos, b64urlParaBytes, bytesParaB64url, opcoesDeCriacao, opcoesDeLogin, credencialParaJSON,
+  mensagemDeErroPasskey,
+} from "../../static/js/util.js";
+
+test("pânico: apaga tela, limpa armazenamentos, encerra sessão e troca a página, nessa ordem", () => {
+  const passos = [];
+  const armazenamento = (nome) => ({ clear: () => passos.push(`limpa ${nome}`) });
+  executarPanico({
+    armazenamentos: [armazenamento("local"), armazenamento("session")],
+    limparTela: () => passos.push("tela"),
+    encerrarSessao: () => passos.push("sessão"),
+    navegar: (url) => passos.push(`vai ${url}`),
+  });
+  assert.deepEqual(passos, ["tela", "limpa local", "limpa session", "sessão", `vai ${DESTINO_PANICO}`]);
+});
+
+test("pânico: navega mesmo se tudo antes falhar (modo privado, rede fora)", () => {
+  let destino = null;
+  const falha = () => { throw new Error("bloqueado"); };
+  executarPanico({
+    armazenamentos: [{ clear: falha }], limparTela: falha, encerrarSessao: falha, navegar: (url) => { destino = url; },
+  });
+  assert.equal(destino, "https://www.google.com/");
+});
+
+test("contagem regressiva das mensagens", () => {
+  assert.equal(formatarRestante(300_000), "5:00");
+  assert.equal(formatarRestante(61_001), "1:02");
+  assert.equal(formatarRestante(999), "0:01");
+  assert.equal(formatarRestante(-5), "0:00");
+  assert.equal(msAte("2026-01-01T00:05:00Z", Date.parse("2026-01-01T00:00:00Z")), 300_000);
+});
+
+test("rotas com parâmetro", () => {
+  assert.deepEqual(lerRota("#/chat/abc-123"), { rota: "chat", parametro: "abc-123" });
+  assert.deepEqual(lerRota(""), { rota: "descobrir", parametro: null });
+  assert.deepEqual(lerRota("#/perfil"), { rota: "perfil", parametro: null });
+});
+
+test("mensagens de erro da API", () => {
+  assert.equal(mensagemDeErro({ detail: "Apelido já em uso" }), "Apelido já em uso");
+  assert.equal(mensagemDeErro({ detail: [{ msg: "Value error, Mínimo 18" }, { msg: "outro" }] }), "Mínimo 18 · outro");
+  assert.equal(mensagemDeErro(null), "Algo deu errado. Tente de novo.");
+});
+
+test("distância em faixas", () => {
+  assert.equal(descreverDistancia(10), "até 10 km");
+  assert.equal(descreverDistancia(null), null);
+});
+
+test("regressão: listas e vazios não viram texto na tela", () => {
+  // A tela de Conexões mostrava "[object HTMLElement]" (array não achatado) e seções
+  // vazias apareceriam como "null".
+  const a = { no: "a" }, b = { no: "b" };
+  assert.deepEqual(normalizarFilhos(["t", [a, [b]], null, undefined, false, 0, ""]), ["t", a, b, 0, ""]);
+});
+
+test("base64url ida e volta, inclusive bytes que viram '-' e '_'", () => {
+  const bytes = Uint8Array.from([0, 1, 250, 251, 252, 253, 254, 255, 62, 63]);
+  const texto = bytesParaB64url(bytes.buffer);
+  assert.doesNotMatch(texto, /[+/=]/);
+  assert.deepEqual([...b64urlParaBytes(texto)], [...bytes]);
+  assert.equal(bytesParaB64url(new Uint8Array([]).buffer), "");
+});
+
+test("opções do servidor viram bytes para o navegador", () => {
+  const criar = opcoesDeCriacao({
+    challenge: "AAEC", user: { id: "_-8", name: "anon_x" }, rp: { id: "x" },
+    excludeCredentials: [{ id: "AQ", type: "public-key" }],
+  });
+  assert.deepEqual([...criar.challenge], [0, 1, 2]);
+  assert.deepEqual([...criar.user.id], [255, 239]);
+  assert.equal(criar.user.name, "anon_x");
+  assert.deepEqual([...criar.excludeCredentials[0].id], [1]);
+  const entrar = opcoesDeLogin({ challenge: "AAEC", userVerification: "required" });
+  assert.deepEqual(entrar.allowCredentials, []);
+  assert.equal(entrar.userVerification, "required");
+});
+
+test("credencial do navegador vira o JSON que o servidor espera", () => {
+  const b = (...n) => Uint8Array.from(n).buffer;
+  const criada = credencialParaJSON({
+    id: "AQI", rawId: b(1, 2), type: "public-key", authenticatorAttachment: "platform",
+    getClientExtensionResults: () => ({}),
+    response: { clientDataJSON: b(3), attestationObject: b(4), getTransports: () => ["internal"] },
+  });
+  assert.deepEqual(criada.response, { clientDataJSON: "Aw", attestationObject: "BA", transports: ["internal"] });
+  const assinada = credencialParaJSON({
+    id: "AQI", rawId: b(1, 2), type: "public-key",
+    response: { clientDataJSON: b(3), authenticatorData: b(5), signature: b(6), userHandle: null },
+  });
+  assert.deepEqual(assinada.response, { clientDataJSON: "Aw", authenticatorData: "BQ", signature: "Bg", userHandle: null });
+  assert.equal(assinada.authenticatorAttachment, null);
+});
+
+test("erros do navegador viram mensagens em português", () => {
+  assert.match(mensagemDeErroPasskey({ name: "NotAllowedError" }), /cancelada/);
+  assert.match(mensagemDeErroPasskey({ name: "InvalidStateError" }), /já tem uma passkey/);
+  assert.match(mensagemDeErroPasskey({ name: "SecurityError" }), /HTTPS/);
+  assert.equal(mensagemDeErroPasskey({ name: "Outro", message: "x" }), "x");
+  assert.equal(mensagemDeErroPasskey(undefined), "Não foi possível usar a passkey.");
+});
