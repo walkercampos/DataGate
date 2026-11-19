@@ -20,6 +20,13 @@ class Settings(BaseSettings):
 
     redis_url: SecretStr = SecretStr("redis://localhost:6379/0")
 
+    # JWT: segredo SEMPRE no .env (gere com: python -c "import secrets;print(secrets.token_urlsafe(48))")
+    jwt_secret: SecretStr
+    jwt_expira_minutos: int = 480
+
+    # Origens liberadas no CORS (regex). Padrão: localhost e previews do Lovable.
+    cors_origin_regex: str = r"^(https?://(localhost|127\.0\.0\.1)(:\d+)?|https://[a-z0-9-]+\.(lovable\.app|lovableproject\.com))$"
+
     @property
     def is_production(self) -> bool:
         return self.environment == "production"

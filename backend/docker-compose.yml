@@ -37,6 +37,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://saas_app:${DB_APP_PASSWORD}@postgres:5432/saas_pilates
       MIGRATION_DATABASE_URL: postgresql+asyncpg://saas_owner:${DB_OWNER_PASSWORD}@postgres:5432/saas_pilates
       REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:?defina no .env}
       TEST_DATABASE_URL: postgresql+asyncpg://saas_app:${DB_APP_PASSWORD}@postgres:5432/saas_pilates_test
       TEST_MIGRATION_DATABASE_URL: postgresql+asyncpg://saas_owner:${DB_OWNER_PASSWORD}@postgres:5432/saas_pilates_test
       TEST_REDIS_URL: redis://redis:6379/15

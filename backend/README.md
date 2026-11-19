@@ -7,7 +7,30 @@ FastAPI + PostgreSQL 16 (SQLAlchemy 2.0 async/asyncpg) + Redis. Multi-tenant com
 | Fatia | Escopo | Status |
 |---|---|---|
 | 0 | Fundação: Docker, config, RLS, `trace_id`, Swagger off em produção, `/health` | ✅ |
-| 1 | Auth/JWT multi-tenant | ⏳ |
+| 1 | Auth/JWT multi-tenant: cadastro de estúdio, login, `/auth/me`, configurações do estúdio | ✅ |
+| 2 | Alunos: cadastro, busca, edição, inativação (créditos não editáveis pelo cliente) | ✅ |
+| 3 | Agenda: aulas avulsas e grade recorrente, lotação com `FOR UPDATE`, cancelamento com/sem crédito, reposição com débito atômico, presença/falta | ✅ |
+| 4 | Planos e grade fixa mensal | ⏳ |
+| 5 | Prontuário imutável (hash + trigger) | ⏳ |
+| 6 | WhatsApp (WAHA + ARQ) e webhooks idempotentes | ⏳ |
+
+## Endpoints
+
+| Método | Rota | O que faz |
+|---|---|---|
+| POST | `/auth/registrar` | Cria estúdio + admin, devolve token |
+| POST | `/auth/login` | Login, devolve token |
+| GET | `/auth/me` | Usuário logado |
+| GET/PATCH | `/estudio` | Configurações (capacidade, antecedência, validade do crédito, fuso) |
+| POST/GET | `/alunos` | Cadastrar / listar (`?busca=`, `?apenas_ativos=`) |
+| GET/PATCH | `/alunos/{id}` | Detalhe / editar / inativar |
+| POST | `/agenda/aulas` | Criar aula avulsa (capacidade vem do estúdio) |
+| POST | `/agenda/aulas/recorrentes` | Gerar grade (dias da semana × semanas) |
+| GET | `/agenda/aulas?de=&ate=` | Aulas do período com vagas e participantes |
+| GET/DELETE | `/agenda/aulas/{id}` | Detalhe / excluir (só sem agendamentos) |
+| POST | `/agenda/aulas/{id}/agendamentos` | Agendar aluno (`usar_reposicao` consome crédito) |
+| POST | `/agenda/agendamentos/{id}/cancelar` | Cancela; no prazo gera +1 crédito |
+| POST | `/agenda/agendamentos/{id}/presenca` | Marca `presente` ou `falta` |
 
 ## Estrutura
 

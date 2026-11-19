@@ -61,7 +61,7 @@ async def clean_tables() -> AsyncIterator[None]:
     # Limpeza com o papel dono (a API não tem permissão de TRUNCATE).
     engine = create_async_engine(TEST_MIGRATION_URL, poolclass=NullPool)
     async with engine.begin() as conn:
-        await conn.execute(text("TRUNCATE tenants, eventos_processados"))
+        await conn.execute(text("TRUNCATE agendamentos, aulas, alunos, usuarios, tenants, eventos_processados"))
     await engine.dispose()
 
 
@@ -96,3 +96,31 @@ async def app_engine(settings: Settings) -> AsyncIterator[AsyncEngine]:
 @pytest.fixture
 def session_factory(app_engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
     return create_session_factory(app_engine)
+
+
+@pytest.fixture
+def owner_url() -> str:
+    return TEST_MIGRATION_URL
+
+
+@pytest.fixture
+def registrar(client: AsyncClient):  # type: ignore[no-untyped-def]
+    """Cria um estúdio via API e devolve os headers de autenticação + dados do usuário."""
+    contador = {"n": 0}
+
+    async def _registrar(nome_estudio: str = "Studio Teste") -> dict:
+        contador["n"] += 1
+        email = f"admin{contador['n']}.{os.urandom(4).hex()}@estudio.com.br"
+        resp = await client.post(
+            "/auth/registrar",
+            json={"nome_estudio": nome_estudio, "nome": "Admin", "email": email, "senha": "senha-forte-123"},
+        )
+        assert resp.status_code == 201, resp.text
+        body = resp.json()
+        return {
+            "headers": {"Authorization": f"Bearer {body['access_token']}"},
+            "usuario": body["usuario"],
+            "email": email,
+        }
+
+    return _registrar
