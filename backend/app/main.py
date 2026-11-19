@@ -42,14 +42,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.session_factory = create_session_factory(app.state.engine)
     app.state.redis = Redis.from_url(settings.redis_url.get_secret_value())
 
-    # Frontend (Lovable/localhost) chama a API pelo navegador: CORS restrito por regex.
-    # allow_private_network: permite que uma página pública acesse a API rodando em localhost.
+    # CORS restrito por regex (apenas desenvolvimento local; em produção o nginx serve tudo no mesmo domínio).
     app.add_middleware(
         CORSMiddleware,
         allow_origin_regex=settings.cors_origin_regex,
         allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type"],
-        allow_private_network=True,
     )
 
     register_exception_handlers(app)

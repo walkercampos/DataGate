@@ -49,6 +49,14 @@ services:
       redis:
         condition: service_healthy
 
+  # Interface web: http://localhost:8080 (nginx serve o app e repassa /api para a API).
+  web:
+    build: ../frontend
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on:
+      - api
+
   # WhatsApp: só sobe com `--profile whatsapp` (integração entra na fatia de WhatsApp).
   waha:
     image: devlikeapro/waha:latest

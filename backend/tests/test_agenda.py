@@ -274,9 +274,10 @@ async def test_isolamento_da_agenda_entre_estudios(client: AsyncClient, registra
 
 async def test_cors_libera_frontend_e_bloqueia_origem_desconhecida(client: AsyncClient) -> None:
     preflight = {"Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "authorization,content-type"}
-    ok = await client.options("/auth/login", headers={"Origin": "https://meu-app.lovable.app", **preflight})
+    ok = await client.options("/auth/login", headers={"Origin": "http://localhost:5173", **preflight})
     assert ok.status_code == 200
-    assert ok.headers["access-control-allow-origin"] == "https://meu-app.lovable.app"
+    assert ok.headers["access-control-allow-origin"] == "http://localhost:5173"
 
-    ruim = await client.options("/auth/login", headers={"Origin": "https://site-malicioso.com", **preflight})
-    assert "access-control-allow-origin" not in ruim.headers
+    for origem in ("https://site-malicioso.com", "https://meu-app.lovable.app", "http://localhost.evil.com"):
+        ruim = await client.options("/auth/login", headers={"Origin": origem, **preflight})
+        assert "access-control-allow-origin" not in ruim.headers, origem

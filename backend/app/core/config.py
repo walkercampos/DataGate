@@ -24,8 +24,9 @@ class Settings(BaseSettings):
     jwt_secret: SecretStr
     jwt_expira_minutos: int = 480
 
-    # Origens liberadas no CORS (regex). Padrão: localhost e previews do Lovable.
-    cors_origin_regex: str = r"^(https?://(localhost|127\.0\.0\.1)(:\d+)?|https://[a-z0-9-]+\.(lovable\.app|lovableproject\.com))$"
+    # Origens liberadas no CORS (regex). O frontend oficial usa o mesmo domínio (/api via nginx),
+    # então só o desenvolvimento local precisa de CORS.
+    cors_origin_regex: str = r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$"
 
     @property
     def is_production(self) -> bool:

@@ -10,9 +10,10 @@ FastAPI + PostgreSQL 16 (SQLAlchemy 2.0 async/asyncpg) + Redis. Multi-tenant com
 | 1 | Auth/JWT multi-tenant: cadastro de estúdio, login, `/auth/me`, configurações do estúdio | ✅ |
 | 2 | Alunos: cadastro, busca, edição, inativação (créditos não editáveis pelo cliente) | ✅ |
 | 3 | Agenda: aulas avulsas e grade recorrente, lotação com `FOR UPDATE`, cancelamento com/sem crédito, reposição com débito atômico, presença/falta | ✅ |
-| 4 | Planos e grade fixa mensal | ⏳ |
-| 5 | Prontuário imutável (hash + trigger) | ⏳ |
-| 6 | WhatsApp (WAHA + ARQ) e webhooks idempotentes | ⏳ |
+| 4 | Planos e contratos com horários fixos; grade mensal automática e idempotente | ✅ |
+| 5 | Prontuário: avaliação/evolução, assinatura, hash SHA-256 e trigger de imutabilidade | ✅ |
+| Web | Interface própria em `../frontend` (React + Vite + Tailwind) | ✅ |
+| 6 | WhatsApp (WAHA + ARQ): lembrete 24h, cancelamento por "2", webhooks idempotentes | ⏳ |
 
 ## Endpoints
 
@@ -31,6 +32,17 @@ FastAPI + PostgreSQL 16 (SQLAlchemy 2.0 async/asyncpg) + Redis. Multi-tenant com
 | POST | `/agenda/aulas/{id}/agendamentos` | Agendar aluno (`usar_reposicao` consome crédito) |
 | POST | `/agenda/agendamentos/{id}/cancelar` | Cancela; no prazo gera +1 crédito |
 | POST | `/agenda/agendamentos/{id}/presenca` | Marca `presente` ou `falta` |
+| POST/GET | `/planos` | Criar / listar planos |
+| PATCH | `/planos/{id}` | Editar / inativar plano |
+| POST | `/contratos` | Contratar plano com horários fixos (gera a grade do mês) |
+| GET | `/contratos?aluno_id=` | Contratos |
+| POST | `/contratos/{id}/gerar-grade` | Gerar grade de um mês para o contrato |
+| POST | `/contratos/gerar-grade-mensal` | Gerar grade do mês para todos os contratos ativos |
+| POST | `/contratos/{id}/encerrar` | Encerrar e liberar aulas futuras |
+| POST/GET | `/alunos/{id}/prontuario` | Novo registro (rascunho) / histórico |
+| GET/PATCH/DELETE | `/prontuario/{id}` | Ver / editar / excluir (só rascunho) |
+| POST | `/prontuario/{id}/assinar` | Assina: o banco grava hash SHA-256 e bloqueia |
+| GET | `/prontuario/{id}/verificar` | Recalcula o hash e confere a integridade |
 
 ## Estrutura
 
@@ -54,8 +66,9 @@ tests/             integração real contra saas_pilates_test
 
 ```bash
 cd backend
-cp .env.example .env          # edite as senhas
-docker compose up -d --build  # postgres + redis + api (aplica migrações ao subir)
+cp .env.example .env          # edite as senhas e o JWT_SECRET
+docker compose up -d --build  # postgres + redis + api + web (aplica migrações ao subir)
+# Interface: http://localhost:8080
 curl http://localhost:8000/health
 # Swagger: http://localhost:8000/docs   (desativado se ENVIRONMENT=production)
 
