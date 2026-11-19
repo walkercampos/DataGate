@@ -62,6 +62,16 @@ tests/             integração real contra saas_pilates_test
 - **`set_tenant(session, tenant_id)`** executa `set_config('app.current_tenant_id', :tid, true)`, equivalente parametrizado de `SET LOCAL`, válido só na transação. O `tenant_id` virá do JWT (Fatia 1).
 - **`eventos_processados`:** a API só tem `SELECT/INSERT` — um carimbo nunca é apagado ou reescrito.
 
+## Ubuntu: instalação em um comando
+
+```bash
+git clone https://github.com/walkercampos/DataGate.git && cd DataGate
+git checkout claude/pilates-physio-saas-backend-lv5qr2
+./scripts/setup-ubuntu.sh          # instala Docker, gera .env com senhas aleatórias e sobe tudo
+./scripts/setup-ubuntu.sh --dev    # + Python 3.12, Node 22, Playwright e roda TODOS os testes
+```
+Interface em http://localhost:8080 · Swagger em http://localhost:8000/docs.
+
 ## Rodando com Docker
 
 ```bash
