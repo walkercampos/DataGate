@@ -1,0 +1,66 @@
+name: saas-pilates
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina no .env}
+      DB_OWNER_PASSWORD: ${DB_OWNER_PASSWORD:?defina no .env}
+      DB_APP_PASSWORD: ${DB_APP_PASSWORD:?defina no .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/init-db.sh:/docker-entrypoint-initdb.d/01-init-db.sh:ro
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d saas_pilates"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build: .
+    env_file: .env
+    environment:
+      # Dentro da rede do compose os hosts são os nomes dos serviços.
+      DATABASE_URL: postgresql+asyncpg://saas_app:${DB_APP_PASSWORD}@postgres:5432/saas_pilates
+      MIGRATION_DATABASE_URL: postgresql+asyncpg://saas_owner:${DB_OWNER_PASSWORD}@postgres:5432/saas_pilates
+      REDIS_URL: redis://redis:6379/0
+      TEST_DATABASE_URL: postgresql+asyncpg://saas_app:${DB_APP_PASSWORD}@postgres:5432/saas_pilates_test
+      TEST_MIGRATION_DATABASE_URL: postgresql+asyncpg://saas_owner:${DB_OWNER_PASSWORD}@postgres:5432/saas_pilates_test
+      TEST_REDIS_URL: redis://redis:6379/15
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # WhatsApp: só sobe com `--profile whatsapp` (integração entra na fatia de WhatsApp).
+  waha:
+    image: devlikeapro/waha:latest
+    profiles: ["whatsapp"]
+    environment:
+      WHATSAPP_DEFAULT_ENGINE: NOWEB
+      WAHA_API_KEY: ${WAHA_API_KEY:?defina no .env}
+      WHATSAPP_SESSIONS_POSTGRESQL_URL: postgres://saas_owner:${DB_OWNER_PASSWORD}@postgres:5432/waha?sslmode=disable
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
