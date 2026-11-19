@@ -182,16 +182,16 @@ async def conceder_credito(session: AsyncSession, tenant_id: UUID, aluno_id: UUI
 
 
 async def inserir_agendamento(
-    session: AsyncSession, tenant_id: UUID, aula_id: UUID, aluno_id: UUID, tipo: str
+    session: AsyncSession, tenant_id: UUID, aula_id: UUID, aluno_id: UUID, tipo: str, contrato_id: UUID | None = None
 ) -> RowMapping:
     result = await session.execute(
         text(
             f"""
-            INSERT INTO agendamentos (tenant_id, aula_id, aluno_id, tipo)
-            VALUES (:tid, :aula, :aluno, :tipo) RETURNING {_AG}
+            INSERT INTO agendamentos (tenant_id, aula_id, aluno_id, tipo, contrato_id)
+            VALUES (:tid, :aula, :aluno, :tipo, :contrato) RETURNING {_AG}
             """
         ),
-        {"tid": tenant_id, "aula": aula_id, "aluno": aluno_id, "tipo": tipo},
+        {"tid": tenant_id, "aula": aula_id, "aluno": aluno_id, "tipo": tipo, "contrato": contrato_id},
     )
     return result.mappings().one()
 
@@ -224,3 +224,29 @@ async def atualizar_status(session: AsyncSession, tenant_id: UUID, agendamento_i
         {"status": status, "id": agendamento_id, "tid": tenant_id},
     )
     return result.mappings().one()
+
+
+async def buscar_aula_por_inicio(session: AsyncSession, tenant_id: UUID, inicio: datetime) -> UUID | None:
+    result = await session.execute(
+        text("SELECT id FROM aulas WHERE tenant_id = :tid AND inicio = :inicio ORDER BY criado_em LIMIT 1"),
+        {"tid": tenant_id, "inicio": inicio},
+    )
+    return result.scalar_one_or_none()
+
+
+async def cancelar_futuros_do_contrato(
+    session: AsyncSession, tenant_id: UUID, contrato_id: UUID, a_partir_de: datetime
+) -> int:
+    result = await session.execute(
+        text(
+            """
+            UPDATE agendamentos ag SET status = 'cancelado_contrato', atualizado_em = now()
+              FROM aulas a
+             WHERE a.id = ag.aula_id AND a.tenant_id = ag.tenant_id
+               AND ag.tenant_id = :tid AND ag.contrato_id = :contrato
+               AND ag.status = 'agendado' AND a.inicio >= :desde
+            """
+        ),
+        {"tid": tenant_id, "contrato": contrato_id, "desde": a_partir_de},
+    )
+    return result.rowcount

@@ -23,6 +23,14 @@ from app.modules.agenda.schemas import (
 MAX_JANELA_DIAS = 62
 
 
+class TurmaLotada(Conflito):
+    pass
+
+
+class JaAgendado(Conflito):
+    pass
+
+
 def _agora() -> datetime:
     return datetime.now(UTC)
 
@@ -94,6 +102,24 @@ async def excluir_aula(session: AsyncSession, tenant_id: UUID, aula_id: UUID) ->
 
 
 async def agendar(session: AsyncSession, tenant_id: UUID, aula_id: UUID, dados: AgendarIn) -> AgendamentoOut:
+    aluno = await repository.buscar_aluno(session, tenant_id, dados.aluno_id)
+    if not aluno:
+        raise NaoEncontrado("Aluno não encontrado.")
+    if not aluno["ativo"]:
+        raise Conflito("Aluno inativo não pode ser agendado.")
+    return await reservar_vaga(session, tenant_id, aula_id, dados.aluno_id, usar_reposicao=dados.usar_reposicao)
+
+
+async def reservar_vaga(
+    session: AsyncSession,
+    tenant_id: UUID,
+    aula_id: UUID,
+    aluno_id: UUID,
+    *,
+    usar_reposicao: bool = False,
+    contrato_id: UUID | None = None,
+) -> AgendamentoOut:
+    """Núcleo do agendamento (usado pela agenda e pela grade fixa dos contratos)."""
     # 1) Trava a aula: requisições concorrentes para a mesma turma esperam aqui.
     aula = await repository.travar_aula(session, tenant_id, aula_id)
     if not aula:
@@ -101,29 +127,23 @@ async def agendar(session: AsyncSession, tenant_id: UUID, aula_id: UUID, dados: 
     if aula["inicio"] <= _agora():
         raise Conflito("Esta aula já começou ou já passou.")
 
-    aluno = await repository.buscar_aluno(session, tenant_id, dados.aluno_id)
-    if not aluno:
-        raise NaoEncontrado("Aluno não encontrado.")
-    if not aluno["ativo"]:
-        raise Conflito("Aluno inativo não pode ser agendado.")
-
     # 2) Com a trava, a contagem é confiável: ninguém insere nesta aula até o commit.
-    if await repository.aluno_ja_na_aula(session, tenant_id, aula_id, dados.aluno_id):
-        raise Conflito("Este aluno já está agendado nesta aula.")
+    if await repository.aluno_ja_na_aula(session, tenant_id, aula_id, aluno_id):
+        raise JaAgendado("Este aluno já está agendado nesta aula.")
     if await repository.contar_ocupadas(session, tenant_id, aula_id) >= aula["capacidade"]:
-        raise Conflito("Turma lotada: não há vagas neste horário.")
+        raise TurmaLotada("Turma lotada: não há vagas neste horário.")
 
     # 3) Reposição: débito atômico. Se a transação falhar depois, o crédito volta (rollback).
     tipo = "regular"
-    if dados.usar_reposicao:
-        if not await repository.consumir_credito(session, tenant_id, dados.aluno_id):
+    if usar_reposicao:
+        if not await repository.consumir_credito(session, tenant_id, aluno_id):
             raise Conflito("O aluno não tem créditos de reposição válidos.")
         tipo = "reposicao"
 
     try:
-        row = await repository.inserir_agendamento(session, tenant_id, aula_id, dados.aluno_id, tipo)
+        row = await repository.inserir_agendamento(session, tenant_id, aula_id, aluno_id, tipo, contrato_id)
     except IntegrityError:
-        raise Conflito("Este aluno já está agendado nesta aula.") from None
+        raise JaAgendado("Este aluno já está agendado nesta aula.") from None
     return AgendamentoOut(**row)
 
 

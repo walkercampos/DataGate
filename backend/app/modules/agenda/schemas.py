@@ -4,7 +4,9 @@ from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, Field, field_validator
 
-StatusAgendamento = Literal["agendado", "cancelado_com_credito", "cancelado_sem_credito", "presente", "falta"]
+StatusAgendamento = Literal[
+    "agendado", "cancelado_com_credito", "cancelado_sem_credito", "cancelado_contrato", "presente", "falta"
+]
 
 
 class AulaCreate(BaseModel):

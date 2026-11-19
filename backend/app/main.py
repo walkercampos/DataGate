@@ -13,8 +13,10 @@ from app.core.exceptions import register_exception_handlers
 from app.modules.agenda.router import router as agenda_router
 from app.modules.alunos.router import router as alunos_router
 from app.modules.auth.router import router as auth_router
+from app.modules.contratos.router import router as contratos_router
 from app.modules.estudio.router import router as estudio_router
 from app.modules.health.router import router as health_router
+from app.modules.planos.router import router as planos_router
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -50,7 +52,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
 
     register_exception_handlers(app)
-    for router in (health_router, auth_router, estudio_router, alunos_router, agenda_router):
+    for router in (
+        health_router, auth_router, estudio_router, alunos_router, planos_router, contratos_router, agenda_router
+    ):
         app.include_router(router)
     return app
 

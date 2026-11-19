@@ -61,7 +61,13 @@ async def clean_tables() -> AsyncIterator[None]:
     # Limpeza com o papel dono (a API não tem permissão de TRUNCATE).
     engine = create_async_engine(TEST_MIGRATION_URL, poolclass=NullPool)
     async with engine.begin() as conn:
-        await conn.execute(text("TRUNCATE agendamentos, aulas, alunos, usuarios, tenants, eventos_processados"))
+        tabelas = (
+            await conn.execute(
+                text("SELECT string_agg(quote_ident(tablename), ', ') FROM pg_tables "
+                     "WHERE schemaname = 'public' AND tablename <> 'alembic_version'")
+            )
+        ).scalar_one()
+        await conn.execute(text(f"TRUNCATE {tabelas}"))
     await engine.dispose()
 
 
