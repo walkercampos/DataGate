@@ -81,6 +81,13 @@ docker compose --profile whatsapp up -d waha
 
 > O script `docker/postgres/init-db.sh` roda só na **criação** do volume. Se mudar senhas depois: `docker compose down -v` (apaga os dados locais).
 
+## Todos os testes de uma vez
+
+```bash
+./scripts/testar-tudo.sh   # na raiz: pytest -> npm test -> build -> e2e (Playwright)
+```
+O GitHub Actions roda os mesmos três níveis a cada push.
+
 ## Rodando local (sem Docker para a API)
 
 ```bash

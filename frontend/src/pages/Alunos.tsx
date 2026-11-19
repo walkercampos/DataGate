@@ -58,7 +58,7 @@ function ListaAlunos({ abrir }: { abrir: (id: string) => void }) {
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {!a.ativo && <Selo>Inativo</Selo>}
                       {a.creditos_reposicao > 0 && (
-                        <Selo cor="roxo"><Ticket className="h-3 w-3" />{a.creditos_reposicao} reposição{a.creditos_reposicao > 1 ? "ões" : ""}</Selo>
+                        <Selo cor="roxo"><Ticket className="h-3 w-3" />{a.creditos_reposicao} {a.creditos_reposicao > 1 ? "reposições" : "reposição"}</Selo>
                       )}
                     </div>
                   </div>

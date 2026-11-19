@@ -106,10 +106,10 @@ export const Erro = ({ texto, tentar }: { texto: string; tentar?: () => void }) 
 
 export function Abas<T extends string>({ abas, ativa, onChange }: { abas: { id: T; rotulo: string }[]; ativa: T; onChange: (t: T) => void }) {
   return (
-    <div className="flex gap-1 rounded-xl bg-slate-100 p-1">
+    <div role="tablist" className="flex gap-1 rounded-xl bg-slate-100 p-1">
       {abas.map((a) => (
         <button
-          key={a.id} type="button" onClick={() => onChange(a.id)}
+          key={a.id} type="button" role="tab" aria-selected={ativa === a.id} onClick={() => onChange(a.id)}
           className={cx("flex-1 rounded-lg px-3 py-2 text-sm font-medium transition cursor-pointer", ativa === a.id ? "bg-white text-brand-700 shadow-sm" : "text-slate-600 hover:text-slate-800")}
         >
           {a.rotulo}
