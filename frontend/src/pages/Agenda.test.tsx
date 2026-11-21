@@ -108,6 +108,6 @@ describe("Agenda", () => {
     mockApi({ "GET /agenda/aulas": { body: [aula({ tipo: "individual", titulo: "Fisio", capacidade: 1, ocupadas: 1, vagas: 0 })] } });
     tela();
     expect(await screen.findByText("Individual")).toBeInTheDocument();
-    expect(screen.getByText("1/1")).toBeInTheDocument();
+    expect(screen.getByText("1/1")).not.toHaveClass("bg-red-500"); // ocupado, mas não é "lotado"
   });
 });

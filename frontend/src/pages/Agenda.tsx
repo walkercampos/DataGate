@@ -59,7 +59,8 @@ export default function Agenda() {
 }
 
 function CartaoAula({ aula: a, onClick }: { aula: Aula; onClick: () => void }) {
-  const lotada = a.vagas <= 0;
+  // Vermelho = turma lotada. Individual ocupado é o normal: fica na cor da marca.
+  const lotada = a.tipo === "grupo" && a.vagas <= 0;
   const passou = new Date(a.inicio) < new Date();
   const ativos = a.participantes.filter((p) => STATUS[p.status].ativo);
   return (
