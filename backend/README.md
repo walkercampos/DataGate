@@ -12,6 +12,7 @@ FastAPI + PostgreSQL 16 (SQLAlchemy 2.0 async/asyncpg) + Redis. Multi-tenant com
 | 3 | Agenda: aulas avulsas e grade recorrente, lotação com `FOR UPDATE`, cancelamento com/sem crédito, reposição com débito atômico, presença/falta | ✅ |
 | 4 | Planos e contratos com horários fixos; grade mensal automática e idempotente | ✅ |
 | 5 | Prontuário: avaliação/evolução, assinatura, hash SHA-256 e trigger de imutabilidade | ✅ |
+| 7 | Atendimento individual (1:1): capacidade 1 garantida no banco, já agenda o paciente; grade fixa nunca usa horário individual | ✅ |
 | Web | Interface própria em `../frontend` (React + Vite + Tailwind) | ✅ |
 | 6 | WhatsApp (WAHA + ARQ): lembrete 24h, cancelamento por "2", webhooks idempotentes | ⏳ |
 
@@ -25,7 +26,7 @@ FastAPI + PostgreSQL 16 (SQLAlchemy 2.0 async/asyncpg) + Redis. Multi-tenant com
 | GET/PATCH | `/estudio` | Configurações (capacidade, antecedência, validade do crédito, fuso) |
 | POST/GET | `/alunos` | Cadastrar / listar (`?busca=`, `?apenas_ativos=`) |
 | GET/PATCH | `/alunos/{id}` | Detalhe / editar / inativar |
-| POST | `/agenda/aulas` | Criar aula avulsa (capacidade vem do estúdio) |
+| POST | `/agenda/aulas` | Criar turma (`tipo: grupo`, capacidade do estúdio) ou atendimento individual (`tipo: individual`, capacidade 1, `aluno_id` opcional) |
 | POST | `/agenda/aulas/recorrentes` | Gerar grade (dias da semana × semanas) |
 | GET | `/agenda/aulas?de=&ate=` | Aulas do período com vagas e participantes |
 | GET/DELETE | `/agenda/aulas/{id}` | Detalhe / excluir (só sem agendamentos) |

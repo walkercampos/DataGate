@@ -41,11 +41,14 @@ export const Textarea = (p: React.TextareaHTMLAttributes<HTMLTextAreaElement>) =
 
 export function Campo({ rotulo, dica, children, className }: { rotulo: string; dica?: string; children: ReactNode; className?: string }) {
   return (
-    <label className={cx("block space-y-1.5", className)}>
-      <span className="text-sm font-medium text-slate-700">{rotulo}</span>
-      {children}
+    <div className={cx("space-y-1.5", className)}>
+      {/* A dica fica FORA do label: o nome acessível do campo é só o rótulo. */}
+      <label className="block space-y-1.5">
+        <span className="text-sm font-medium text-slate-700">{rotulo}</span>
+        {children}
+      </label>
       {dica && <span className="block text-xs text-slate-500">{dica}</span>}
-    </label>
+    </div>
   );
 }
 

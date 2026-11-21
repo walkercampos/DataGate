@@ -5,7 +5,7 @@ import { api } from "../lib/api";
 import { DIAS_CURTOS, chaveDia, fmtDiaLongo, fmtDiaMes, fmtHora, inicioDaSemana, isoData, isoDataHora, mesmoDia, somarDias } from "../lib/datas";
 import { useApi } from "../lib/hooks";
 import { STATUS } from "../lib/status";
-import type { Aluno, Aula, Cancelamento } from "../lib/types";
+import type { Aluno, Aula, Cancelamento, TipoAula } from "../lib/types";
 
 export default function Agenda() {
   const [ref, setRef] = useState(() => inicioDaSemana(new Date()));
@@ -69,6 +69,7 @@ function CartaoAula({ aula: a, onClick }: { aula: Aula; onClick: () => void }) {
         <span className={cx("rounded-full px-2 py-0.5 text-[11px] font-bold", lotada ? "bg-red-500 text-white" : "bg-white text-slate-700")}>{a.ocupadas}/{a.capacidade}</span>
       </div>
       <p className="text-sm font-semibold leading-tight text-slate-800">{a.titulo}</p>
+      {a.tipo === "individual" && <Selo cor="roxo">Individual</Selo>}
       <div className="h-1 overflow-hidden rounded-full bg-white">
         <div className={cx("h-full", lotada ? "bg-red-500" : "bg-brand-500")} style={{ width: `${Math.min(100, (a.ocupadas / a.capacidade) * 100)}%` }} />
       </div>
@@ -81,8 +82,16 @@ function CartaoAula({ aula: a, onClick }: { aula: Aula; onClick: () => void }) {
 
 function NovaAula({ aberto, onFechar, dataPadrao, onCriado }: { aberto: boolean; onFechar: () => void; dataPadrao: string; onCriado: () => void }) {
   const [aba, setAba] = useState<"avulsa" | "grade">("avulsa");
-  const [av, setAv] = useState({ data: "", hora: "07:00", duracao: 50, titulo: "Pilates" });
+  const [tipo, setTipo] = useState<TipoAula>("grupo");
+  const [av, setAv] = useState({ data: "", hora: "07:00", duracao: 50, titulo: "Pilates", aluno: "" });
   const [gr, setGr] = useState({ data: "", semanas: 4, dias: [] as number[], hora: "07:00", duracao: 50, titulo: "Pilates" });
+  const alunos = useApi<Aluno[]>(aberto && tipo === "individual" ? "/alunos" : null, { apenas_ativos: true });
+  const mudarTipo = (t: TipoAula) => {
+    setTipo(t);
+    const titulo = t === "individual" ? "Atendimento individual" : "Pilates";
+    setAv((x) => ({ ...x, titulo, aluno: "" }));
+    setGr((x) => ({ ...x, titulo }));
+  };
   const [enviando, setEnviando] = useState(false);
   const { avisar, erro } = useAvisos();
 
@@ -92,12 +101,12 @@ function NovaAula({ aberto, onFechar, dataPadrao, onCriado }: { aberto: boolean;
     setEnviando(true);
     try {
       if (aba === "avulsa") {
-        await api("/agenda/aulas", { method: "POST", body: { inicio: isoDataHora(av.data || dataPadrao, av.hora), duracao_minutos: av.duracao, titulo: av.titulo } });
+        await api("/agenda/aulas", { method: "POST", body: { inicio: isoDataHora(av.data || dataPadrao, av.hora), duracao_minutos: av.duracao, titulo: av.titulo, tipo, ...(tipo === "individual" && av.aluno ? { aluno_id: av.aluno } : {}) } });
         avisar("sucesso", "Aula criada!");
       } else {
         const r = await api<Aula[]>("/agenda/aulas/recorrentes", {
           method: "POST",
-          body: { data_inicio: gr.data || dataPadrao, semanas: gr.semanas, dias_semana: gr.dias, hora: gr.hora, duracao_minutos: gr.duracao, titulo: gr.titulo },
+          body: { data_inicio: gr.data || dataPadrao, semanas: gr.semanas, dias_semana: gr.dias, hora: gr.hora, duracao_minutos: gr.duracao, titulo: gr.titulo, tipo },
         });
         avisar(r.length ? "sucesso" : "alerta", r.length ? `${r.length} aulas criadas!` : "Nenhuma aula nova: os horários já existiam ou já passaram.");
       }
@@ -107,8 +116,17 @@ function NovaAula({ aberto, onFechar, dataPadrao, onCriado }: { aberto: boolean;
   };
 
   return (
-    <Modal aberto={aberto} onFechar={onFechar} titulo="Nova aula" subtitulo="A capacidade da turma segue a configuração do estúdio.">
+    <Modal aberto={aberto} onFechar={onFechar} titulo="Nova aula" subtitulo={tipo === "individual" ? "Atendimento individual: 1 paciente por horário." : "A capacidade da turma segue a configuração do estúdio."}>
       <Abas abas={[{ id: "avulsa", rotulo: "Avulsa" }, { id: "grade", rotulo: "Grade recorrente" }]} ativa={aba} onChange={setAba} />
+      <div className="mt-4 grid grid-cols-2 gap-2" role="radiogroup" aria-label="Tipo de atendimento">
+        {([["grupo", "👥 Turma", "várias pessoas por horário"], ["individual", "🧍 Individual", "1 paciente (fisio, avaliação)"]] as const).map(([t, rotulo, dica]) => (
+          <button key={t} type="button" role="radio" aria-checked={tipo === t} onClick={() => mudarTipo(t)}
+            className={cx("rounded-xl border p-3 text-left transition cursor-pointer", tipo === t ? "border-brand-500 bg-brand-50 ring-2 ring-brand-100" : "border-slate-200 hover:bg-slate-50")}>
+            <span className="block text-sm font-semibold text-slate-800">{rotulo}</span>
+            <span className="block text-xs text-slate-500">{dica}</span>
+          </button>
+        ))}
+      </div>
       <form onSubmit={criar} className="mt-4 grid grid-cols-2 gap-3">
         {aba === "avulsa" ? (
           <>
@@ -116,6 +134,14 @@ function NovaAula({ aberto, onFechar, dataPadrao, onCriado }: { aberto: boolean;
             <Campo rotulo="Hora"><Input type="time" required value={av.hora} onChange={(e) => setAv({ ...av, hora: e.target.value })} /></Campo>
             <Campo rotulo="Duração (min)"><Input type="number" min={10} max={240} value={av.duracao} onChange={(e) => setAv({ ...av, duracao: +e.target.value })} /></Campo>
             <Campo rotulo="Título"><Input required minLength={2} value={av.titulo} onChange={(e) => setAv({ ...av, titulo: e.target.value })} /></Campo>
+            {tipo === "individual" && (
+              <Campo rotulo="Paciente (opcional)" className="col-span-2" dica="Já agenda o paciente neste horário.">
+                <Select value={av.aluno} onChange={(e) => setAv({ ...av, aluno: e.target.value })}>
+                  <option value="">Deixar o horário livre</option>
+                  {alunos.data?.map((al) => <option key={al.id} value={al.id}>{al.nome}</option>)}
+                </Select>
+              </Campo>
+            )}
           </>
         ) : (
           <>
@@ -188,7 +214,7 @@ function DetalheAula({ id, onFechar, onMudou }: { id: string; onFechar: () => vo
       {!a ? <Carregando /> : (
         <div className="space-y-4">
           <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
-            <span className="text-sm text-slate-600">Ocupação</span>
+            <span className="text-sm text-slate-600">{a.tipo === "individual" ? "Atendimento individual" : "Ocupação"}</span>
             <span className={cx("text-sm font-bold", a.vagas <= 0 ? "text-red-600" : "text-brand-700")}>
               {a.ocupadas}/{a.capacidade} · {a.vagas > 0 ? `${a.vagas} vaga${a.vagas > 1 ? "s" : ""}` : "lotada"}
             </span>

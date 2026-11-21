@@ -24,24 +24,35 @@ async def config_estudio(session: AsyncSession, tenant_id: UUID) -> RowMapping:
 
 
 async def inserir_aula(
-    session: AsyncSession, tenant_id: UUID, titulo: str, inicio: datetime, duracao: int, capacidade: int
+    session: AsyncSession,
+    tenant_id: UUID,
+    titulo: str,
+    inicio: datetime,
+    duracao: int,
+    capacidade: int,
+    tipo: str = "grupo",
 ) -> UUID:
     result = await session.execute(
         text(
             """
-            INSERT INTO aulas (tenant_id, titulo, inicio, duracao_minutos, capacidade)
-            VALUES (:tid, :titulo, :inicio, :duracao, :capacidade) RETURNING id
+            INSERT INTO aulas (tenant_id, titulo, inicio, duracao_minutos, capacidade, tipo)
+            VALUES (:tid, :titulo, :inicio, :duracao, :capacidade, :tipo) RETURNING id
             """
         ),
-        {"tid": tenant_id, "titulo": titulo, "inicio": inicio, "duracao": duracao, "capacidade": capacidade},
+        {"tid": tenant_id, "titulo": titulo, "inicio": inicio, "duracao": duracao, "capacidade": capacidade, "tipo": tipo},
     )
     return result.scalar_one()
 
 
-async def inicios_existentes(session: AsyncSession, tenant_id: UUID, titulo: str, inicios: list[datetime]) -> set[datetime]:
+async def inicios_existentes(
+    session: AsyncSession, tenant_id: UUID, titulo: str, inicios: list[datetime], tipo: str = "grupo"
+) -> set[datetime]:
     result = await session.execute(
-        text("SELECT inicio FROM aulas WHERE tenant_id = :tid AND titulo = :titulo AND inicio = ANY(:inicios)"),
-        {"tid": tenant_id, "titulo": titulo, "inicios": inicios},
+        text(
+            "SELECT inicio FROM aulas WHERE tenant_id = :tid AND titulo = :titulo AND tipo = :tipo"
+            " AND inicio = ANY(:inicios)"
+        ),
+        {"tid": tenant_id, "titulo": titulo, "tipo": tipo, "inicios": inicios},
     )
     return set(result.scalars().all())
 
@@ -50,7 +61,7 @@ async def listar_aulas(session: AsyncSession, tenant_id: UUID, de: datetime, ate
     result = await session.execute(
         text(
             f"""
-            SELECT a.id, a.titulo, a.inicio, a.duracao_minutos, a.capacidade,
+            SELECT a.id, a.titulo, a.tipo, a.inicio, a.duracao_minutos, a.capacidade,
                    count(ag.id) FILTER (WHERE ag.status IN {ATIVOS}) AS ocupadas
               FROM aulas a
               LEFT JOIN agendamentos ag ON ag.aula_id = a.id AND ag.tenant_id = a.tenant_id
@@ -68,7 +79,7 @@ async def buscar_aula(session: AsyncSession, tenant_id: UUID, aula_id: UUID) -> 
     result = await session.execute(
         text(
             f"""
-            SELECT a.id, a.titulo, a.inicio, a.duracao_minutos, a.capacidade,
+            SELECT a.id, a.titulo, a.tipo, a.inicio, a.duracao_minutos, a.capacidade,
                    (SELECT count(*) FROM agendamentos ag
                      WHERE ag.aula_id = a.id AND ag.tenant_id = a.tenant_id AND ag.status IN {ATIVOS}) AS ocupadas
               FROM aulas a WHERE a.id = :id AND a.tenant_id = :tid
@@ -226,10 +237,15 @@ async def atualizar_status(session: AsyncSession, tenant_id: UUID, agendamento_i
     return result.mappings().one()
 
 
-async def buscar_aula_por_inicio(session: AsyncSession, tenant_id: UUID, inicio: datetime) -> UUID | None:
+async def buscar_aula_por_inicio(
+    session: AsyncSession, tenant_id: UUID, inicio: datetime, tipo: str = "grupo"
+) -> UUID | None:
     result = await session.execute(
-        text("SELECT id FROM aulas WHERE tenant_id = :tid AND inicio = :inicio ORDER BY criado_em LIMIT 1"),
-        {"tid": tenant_id, "inicio": inicio},
+        text(
+            "SELECT id FROM aulas WHERE tenant_id = :tid AND inicio = :inicio AND tipo = :tipo"
+            " ORDER BY criado_em LIMIT 1"
+        ),
+        {"tid": tenant_id, "inicio": inicio, "tipo": tipo},
     )
     return result.scalar_one_or_none()
 

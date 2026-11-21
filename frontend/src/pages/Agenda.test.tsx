@@ -11,7 +11,7 @@ beforeEach(() => { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(new 
 afterEach(() => vi.useRealTimers());
 
 const aula = (over: Partial<Aula>): Aula => ({
-  id: "a1", titulo: "Pilates", inicio: "2026-11-20T10:00:00Z", duracao_minutos: 50, capacidade: 4, ocupadas: 1, vagas: 3,
+  id: "a1", titulo: "Pilates", tipo: "grupo", inicio: "2026-11-20T10:00:00Z", duracao_minutos: 50, capacidade: 4, ocupadas: 1, vagas: 3,
   participantes: [{ agendamento_id: "g1", aluno_id: "al1", aluno_nome: "Maria Souza", tipo: "regular", status: "agendado" }], ...over,
 });
 const tela = () => render(<ProvedorAvisos><Agenda /></ProvedorAvisos>);
@@ -79,5 +79,35 @@ describe("Agenda", () => {
     await user.selectOptions(await screen.findByRole("combobox"), "al9");
     await user.click(screen.getByRole("button", { name: /Tentar agendar/ }));
     expect(await screen.findByText("Turma lotada: não há vagas neste horário.")).toBeInTheDocument();
+  });
+
+  it("atendimento individual: envia tipo + paciente, nunca capacidade", async () => {
+    const PAC = { id: "al7", nome: "Juliana Prado", telefone: "11999999999", email: null, observacoes: null, ativo: true, creditos_reposicao: 0, creditos_validade_ate: null, criado_em: "" };
+    const m = mockApi({
+      "GET /agenda/aulas": { body: [] },
+      "GET /alunos": { body: [PAC] },
+      "POST /agenda/aulas": { status: 201, body: aula({ tipo: "individual", capacidade: 1, ocupadas: 1, vagas: 0 }) },
+    });
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    tela();
+    await user.click(await screen.findByRole("button", { name: "Nova aula" }));
+    await user.click(screen.getByRole("radio", { name: /Individual/ }));
+    expect(screen.getByLabelText("Título")).toHaveValue("Atendimento individual");
+    await user.selectOptions(await screen.findByLabelText("Paciente (opcional)"), "al7");
+    await user.clear(screen.getByLabelText("Hora"));
+    await user.type(screen.getByLabelText("Hora"), "10:00");
+    await user.click(screen.getByRole("button", { name: "Criar aula" }));
+    expect(await screen.findByText("Aula criada!")).toBeInTheDocument();
+
+    const body = m.de("POST", "/agenda/aulas")[0].body;
+    expect(body).toMatchObject({ tipo: "individual", aluno_id: "al7", titulo: "Atendimento individual", inicio: "2026-11-19T13:00:00.000Z" });
+    expect(body).not.toHaveProperty("capacidade");
+  });
+
+  it("card mostra o selo Individual", async () => {
+    mockApi({ "GET /agenda/aulas": { body: [aula({ tipo: "individual", titulo: "Fisio", capacidade: 1, ocupadas: 1, vagas: 0 })] } });
+    tela();
+    expect(await screen.findByText("Individual")).toBeInTheDocument();
+    expect(screen.getByText("1/1")).toBeInTheDocument();
   });
 });

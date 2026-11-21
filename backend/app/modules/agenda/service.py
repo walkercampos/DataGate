@@ -35,13 +35,22 @@ def _agora() -> datetime:
     return datetime.now(UTC)
 
 
+def _capacidade(tipo: str, cfg) -> int:  # type: ignore[no-untyped-def]
+    """Regra: atendimento individual = 1 pessoa; turma = capacidade configurada no estúdio."""
+    return 1 if tipo == "individual" else cfg["capacidade_padrao_turma"]
+
+
 async def criar_aula(session: AsyncSession, tenant_id: UUID, dados: AulaCreate) -> AulaOut:
     if dados.inicio <= _agora():
         raise AppError("A aula precisa começar no futuro.")
     cfg = await repository.config_estudio(session, tenant_id)
     aula_id = await repository.inserir_aula(
-        session, tenant_id, dados.titulo.strip(), dados.inicio, dados.duracao_minutos, cfg["capacidade_padrao_turma"]
+        session, tenant_id, dados.titulo.strip(), dados.inicio, dados.duracao_minutos,
+        _capacidade(dados.tipo, cfg), dados.tipo,
     )
+    if dados.aluno_id:
+        # Mesma transação: se o aluno não puder ser agendado, a aula também não é criada.
+        await agendar(session, tenant_id, aula_id, AgendarIn(aluno_id=dados.aluno_id))
     return await obter_aula(session, tenant_id, aula_id)
 
 
@@ -60,11 +69,11 @@ async def criar_aulas_recorrentes(session: AsyncSession, tenant_id: UUID, dados:
                 inicios.append(inicio)
 
     # Não duplica aulas já existentes no mesmo horário/título.
-    existentes = await repository.inicios_existentes(session, tenant_id, titulo, inicios)
+    existentes = await repository.inicios_existentes(session, tenant_id, titulo, inicios, dados.tipo)
     novos = [i for i in inicios if i not in existentes]
     for inicio in novos:
         await repository.inserir_aula(
-            session, tenant_id, titulo, inicio, dados.duracao_minutos, cfg["capacidade_padrao_turma"]
+            session, tenant_id, titulo, inicio, dados.duracao_minutos, _capacidade(dados.tipo, cfg), dados.tipo
         )
     if not novos:
         return []
@@ -187,6 +196,7 @@ def _montar_aula(aula, participantes) -> AulaOut:  # type: ignore[no-untyped-def
     return AulaOut(
         id=aula["id"],
         titulo=aula["titulo"],
+        tipo=aula["tipo"],
         inicio=aula["inicio"],
         duracao_minutos=aula["duracao_minutos"],
         capacidade=aula["capacidade"],

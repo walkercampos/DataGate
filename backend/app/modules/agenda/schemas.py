@@ -4,17 +4,21 @@ from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, Field, field_validator
 
+TipoAula = Literal["grupo", "individual"]
+
 StatusAgendamento = Literal[
     "agendado", "cancelado_com_credito", "cancelado_sem_credito", "cancelado_contrato", "presente", "falta"
 ]
 
 
 class AulaCreate(BaseModel):
-    """A capacidade NÃO vem do cliente: é a configuração do estúdio no banco."""
+    """A capacidade NÃO vem do cliente: turma = configuração do estúdio; individual = 1."""
 
     inicio: AwareDatetime = Field(description="Data/hora com fuso, ex.: 2026-12-01T07:00:00-03:00")
     duracao_minutos: int = Field(default=50, ge=10, le=240)
     titulo: str = Field(default="Pilates", min_length=2, max_length=100)
+    tipo: TipoAula = "grupo"
+    aluno_id: UUID | None = Field(default=None, description="Já agenda este aluno (comum no atendimento individual)")
 
 
 class AulasRecorrentesCreate(BaseModel):
@@ -24,6 +28,7 @@ class AulasRecorrentesCreate(BaseModel):
     hora: time = Field(description="Horário local do estúdio, ex.: 07:00")
     duracao_minutos: int = Field(default=50, ge=10, le=240)
     titulo: str = Field(default="Pilates", min_length=2, max_length=100)
+    tipo: TipoAula = "grupo"
 
     @field_validator("dias_semana")
     @classmethod
@@ -44,6 +49,7 @@ class ParticipanteOut(BaseModel):
 class AulaOut(BaseModel):
     id: UUID
     titulo: str
+    tipo: TipoAula
     inicio: datetime
     duracao_minutos: int
     capacidade: int

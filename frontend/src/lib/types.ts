@@ -33,9 +33,11 @@ export type Participante = {
   status: StatusAgendamento;
 };
 
+export type TipoAula = "grupo" | "individual";
 export type Aula = {
   id: string;
   titulo: string;
+  tipo: TipoAula;
   inicio: string;
   duracao_minutos: number;
   capacidade: number;

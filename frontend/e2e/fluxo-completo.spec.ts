@@ -89,8 +89,20 @@ test("fluxo completo do estúdio", async ({ page: p }) => {
     await expect(p.getByText("Cancelou · crédito gerado")).toBeVisible();
   });
 
-  await test.step("crédito aparece na ficha e é usado numa reposição", async () => {
+  await test.step("atendimento individual já com o paciente", async () => {
     await p.keyboard.press("Escape");
+    await p.getByRole("button", { name: "Nova aula" }).click();
+    await p.getByRole("radio", { name: /Individual/ }).click();
+    await p.getByRole("dialog").getByLabel("Hora").fill("10:00");
+    await p.getByLabel("Paciente (opcional)").selectOption({ label: "Bruno Lima" });
+    await p.getByRole("button", { name: "Criar aula" }).click();
+    await aviso(p, "Aula criada!");
+    const card = p.locator('main button:has-text("10:00")');
+    await expect(card.getByText("Individual", { exact: true })).toBeVisible();
+    await expect(card.getByText("1/1")).toBeVisible();
+  });
+
+  await test.step("crédito aparece na ficha e é usado numa reposição", async () => {
     await p.locator('main button:has-text("18:30")').click();
     await p.getByRole("dialog").getByRole("combobox").selectOption({ label: "Maria Souza · 1 crédito(s)" });
     await p.getByRole("switch").click();
